@@ -1,0 +1,7 @@
+flask
+pdfplumber
+python-docx
+reportlab
+scikit-learn
+requests
+beautifulsoup4

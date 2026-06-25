@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PlagCheck — Plagiarism Detector</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0d0f;
+    --surface: #16161a;
+    --surface2: #1e1e24;
+    --surface3: #26262e;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #f0eff4;
+    --muted: #8a8a9a;
+    --dim: #4a4a5a;
+    --red: #e84040;
+    --red-dim: rgba(232,64,64,0.12);
+    --red-border: rgba(232,64,64,0.3);
+    --green: #3ecf8e;
+    --green-dim: rgba(62,207,142,0.1);
+    --yellow: #f5c542;
+    --orange: #f07b3f;
+    --accent: #e84040;
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 16px; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+
+  /* ── NOISE TEXTURE ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  /* ── LAYOUT ── */
+  .shell {
+    position: relative;
+    z-index: 1;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 24px 80px;
+  }
+
+  /* ── NAV ── */
+  nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 28px 0 40px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 48px;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 20px;
+    letter-spacing: -0.5px;
+  }
+  .logo-dot {
+    width: 32px; height: 32px;
+    background: var(--red);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .logo-dot svg { width: 18px; height: 18px; stroke: white; fill: none; stroke-width: 2.5; }
+  .nav-tag {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--muted);
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    letter-spacing: .03em;
+  }
+
+  /* ── HERO ── */
+  .hero { margin-bottom: 48px; }
+  .hero h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(32px, 5vw, 52px);
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -1.5px;
+    margin-bottom: 14px;
+  }
+  .hero h1 span { color: var(--red); }
+  .hero p { font-size: 15px; color: var(--muted); max-width: 520px; line-height: 1.7; }
+  .tech-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+  .tech-tag {
+    font-size: 11px; color: var(--muted);
+    padding: 3px 9px;
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    letter-spacing: .02em;
+  }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px 28px;
+    margin-bottom: 16px;
+  }
+  .card-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin-bottom: 16px;
+  }
+
+  /* ── DROPZONE ── */
+  .dropzone {
+    border: 1.5px dashed rgba(255,255,255,0.14);
+    border-radius: var(--radius-sm);
+    padding: 40px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+    position: relative;
+  }
+  .dropzone:hover, .dropzone.over {
+    border-color: var(--red);
+    background: var(--red-dim);
+  }
+  .dz-icon {
+    width: 48px; height: 48px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 16px;
+  }
+  .dz-icon svg { width: 22px; height: 22px; stroke: var(--muted); fill: none; stroke-width: 1.8; }
+  .dropzone p { font-size: 15px; color: var(--text); margin-bottom: 4px; font-weight: 500; }
+  .dropzone span { font-size: 12px; color: var(--muted); }
+  .dz-btn {
+    display: inline-block;
+    margin-top: 14px;
+    padding: 7px 18px;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    transition: background .15s;
+  }
+  .dz-btn:hover { background: var(--surface3); }
+
+  /* ── FILE CHIP ── */
+  .file-chip {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-top: 12px;
+  }
+  .file-chip-icon { font-size: 22px; }
+  .file-chip-name { font-size: 13px; font-weight: 500; color: var(--text); }
+  .file-chip-size { font-size: 11px; color: var(--muted); }
+  .chip-rm {
+    margin-left: auto; cursor: pointer;
+    color: var(--dim); font-size: 16px;
+    padding: 4px 7px; border-radius: 6px;
+    transition: color .15s, background .15s;
+  }
+  .chip-rm:hover { color: var(--red); background: var(--red-dim); }
+
+  /* ── REF SECTION ── */
+  .ref-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .ref-chip {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 12px; color: var(--muted);
+  }
+  .add-ref-btn {
+    width: 100%; margin-top: 8px;
+    padding: 8px 14px;
+    background: none;
+    border: 1px dashed var(--border2);
+    border-radius: var(--radius-sm);
+    font-size: 12px; color: var(--muted);
+    cursor: pointer; text-align: left;
+    font-family: 'DM Sans', sans-serif;
+    transition: border-color .15s, color .15s;
+  }
+  .add-ref-btn:hover { border-color: var(--red); color: var(--text); }
+
+  /* ── SLIDER ── */
+  .slider-row {
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 4px;
+  }
+  .slider-row label { font-size: 13px; color: var(--muted); flex: 1; }
+  .slider-row strong { font-size: 14px; color: var(--text); min-width: 28px; text-align: right; }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 140px; height: 4px;
+    background: var(--surface3); border-radius: 99px; outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%; background: var(--red);
+    cursor: pointer; border: 2px solid var(--bg);
+  }
+
+  /* ── RUN BUTTON ── */
+  .run-btn {
+    width: 100%; padding: 14px;
+    background: var(--red);
+    border: none; border-radius: var(--radius-sm);
+    font-size: 15px; font-weight: 600;
+    color: white; cursor: pointer;
+    font-family: 'Syne', sans-serif;
+    letter-spacing: .02em;
+    transition: opacity .2s, transform .1s;
+    margin-top: 8px;
+  }
+  .run-btn:hover:not(:disabled) { opacity: .88; }
+  .run-btn:active:not(:disabled) { transform: scale(.99); }
+  .run-btn:disabled { opacity: .35; cursor: default; }
+
+  /* ── PROGRESS ── */
+  #prog-section { display: none; margin-top: 32px; }
+  .prog-label {
+    display: flex; justify-content: space-between;
+    font-size: 13px; color: var(--muted); margin-bottom: 8px;
+  }
+  .pbar-bg {
+    height: 4px; background: var(--surface2);
+    border-radius: 99px; overflow: hidden;
+  }
+  .pbar-fill {
+    height: 4px; background: var(--red);
+    border-radius: 99px; width: 0%;
+    transition: width .5s ease;
+  }
+  .plog {
+    font-size: 12px; color: var(--dim);
+    margin-top: 8px; min-height: 18px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* ── RESULTS ── */
+  #results-section { display: none; margin-top: 40px; }
+  .results-head {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px; font-weight: 600;
+    color: var(--muted); text-transform: uppercase;
+    letter-spacing: .08em; margin-bottom: 20px;
+  }
+
+  /* SCORE BIG */
+  .score-banner {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px 32px;
+    display: flex; align-items: center; gap: 28px;
+    margin-bottom: 16px;
+    position: relative; overflow: hidden;
+  }
+  .score-banner::before {
+    content: '';
+    position: absolute; top: 0; left: 0;
+    width: 4px; height: 100%;
+    border-radius: 4px 0 0 4px;
+  }
+  .score-num {
+    font-family: 'Syne', sans-serif;
+    font-size: 64px; font-weight: 800;
+    line-height: 1; min-width: 108px;
+    letter-spacing: -2px;
+  }
+  .score-info { flex: 1; }
+  .score-level {
+    font-family: 'Syne', sans-serif;
+    font-size: 20px; font-weight: 700;
+    margin-bottom: 4px; letter-spacing: -.3px;
+  }
+  .score-advice { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+
+  /* SCALE BAR */
+  .scalebar {
+    display: flex; height: 6px;
+    border-radius: 99px; overflow: visible;
+    position: relative; margin-bottom: 5px;
+  }
+  .scalebar div { flex: 1; }
+  .scalebar div:first-child { border-radius: 99px 0 0 99px; }
+  .scalebar div:last-child  { border-radius: 0 99px 99px 0; }
+  #needle {
+    position: absolute; top: -3px;
+    width: 3px; height: 12px;
+    background: white; border-radius: 2px;
+    left: 0%; transform: translateX(-50%);
+    transition: left .9s cubic-bezier(.34,1.56,.64,1);
+    box-shadow: 0 0 6px rgba(255,255,255,.5);
+  }
+  .scale-labels {
+    display: flex; justify-content: space-between;
+    font-size: 10px; color: var(--dim);
+  }
+
+  /* STATS ROW */
+  .stats-row {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 12px; margin-bottom: 24px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 16px 18px;
+  }
+  .stat-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+  .stat-val {
+    font-family: 'Syne', sans-serif;
+    font-size: 26px; font-weight: 700; color: var(--text);
+  }
+
+  /* SEGMENTS */
+  .seg-heading {
+    font-size: 12px; font-weight: 500; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .07em; margin-bottom: 12px;
+  }
+  .seg-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; }
+  .seg {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+  .seg-top {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+  .seg-badge {
+    font-size: 10px; font-weight: 600;
+    padding: 2px 9px; border-radius: 99px;
+    font-family: 'Syne', sans-serif; letter-spacing: .03em;
+  }
+  .seg-conf { margin-left: auto; font-size: 12px; color: var(--muted); }
+  .seg-conf strong { color: var(--text); }
+  .mtype-tag {
+    font-size: 10px; padding: 2px 7px;
+    border-radius: 99px; font-weight: 500;
+  }
+  .mt-wiki { background: rgba(66,133,244,.15); color: #7aabf0; }
+  .mt-web  { background: rgba(240,123,63,.15);  color: #f0a070; }
+  .mt-local{ background: rgba(62,207,142,.15);  color: #3ecf8e; }
+  .seg-body { padding: 14px 16px; }
+  .seg-txt {
+    font-size: 13px; color: #f0c0c0; line-height: 1.65;
+    background: rgba(232,64,64,.07);
+    border-left: 3px solid var(--red);
+    padding: 9px 12px; border-radius: 0 6px 6px 0;
+    margin-bottom: 10px;
+  }
+  .seg-source { font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .seg-source strong { color: var(--text); }
+  .seg-source a {
+    color: #7aabf0; text-decoration: none;
+    font-size: 11px; word-break: break-all;
+  }
+  .seg-source a:hover { text-decoration: underline; }
+
+  /* CLEAN STATE */
+  .clean-state {
+    display: flex; align-items: center; gap: 14px;
+    padding: 18px 22px;
+    background: var(--green-dim);
+    border: 1px solid rgba(62,207,142,.25);
+    border-radius: var(--radius-sm);
+  }
+  .clean-state svg { width: 26px; height: 26px; stroke: var(--green); fill: none; stroke-width: 2; flex-shrink: 0; }
+  .clean-state p { font-size: 14px; color: var(--green); }
+
+  /* DOWNLOAD */
+  .dl-section { margin-top: 8px; }
+  .dl-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 16px 20px;
+    margin-bottom: 10px;
+  }
+  .dl-card p { font-size: 12px; color: var(--muted); line-height: 1.7; }
+  .dl-card strong { color: var(--text); }
+  .dl-btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; padding: 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    font-size: 13px; font-weight: 500; color: var(--text);
+    cursor: pointer; text-decoration: none;
+    font-family: 'DM Sans', sans-serif;
+    transition: background .15s, border-color .15s;
+  }
+  .dl-btn:hover { background: var(--surface3); border-color: var(--red); }
+  .dl-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+  /* RESET */
+  .reset-btn {
+    background: none; border: none; padding: 0;
+    font-size: 13px; color: var(--dim); cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    margin-top: 16px; text-decoration: underline;
+    transition: color .15s;
+  }
+  .reset-btn:hover { color: var(--text); }
+
+  /* ERROR */
+  .error-box {
+    padding: 14px 18px;
+    background: var(--red-dim);
+    border: 1px solid var(--red-border);
+    border-radius: var(--radius-sm);
+    font-size: 13px; color: #f0a0a0;
+    margin-top: 16px; display: none;
+  }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 99px; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <nav>
+    <div class="logo">
+      <div class="logo-dot">
+        <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+      </div>
+      PlagCheck
+    </div>
+    <span class="nav-tag">CSE Project · Free · No API Key</span>
+  </nav>
+
+  <div class="hero">
+    <h1>Detect plagiarism.<br><span>Instantly.</span></h1>
+    <p>Upload any document and get a colour-coded report with source annotations and a downloadable highlighted PDF.</p>
+    <div class="tech-tags">
+      <span class="tech-tag">TF-IDF + Cosine Similarity</span>
+      <span class="tech-tag">N-gram Fingerprinting</span>
+      <span class="tech-tag">Wikipedia API</span>
+      <span class="tech-tag">DuckDuckGo Scrape</span>
+      <span class="tech-tag">PDF / DOCX / TXT</span>
+    </div>
+  </div>
+
+  <!-- UPLOAD SECTION -->
+  <div id="upload-section">
+    <div class="card">
+      <div class="card-label">Document to check</div>
+      <div class="dropzone" id="dz" onclick="document.getElementById('fi').click()">
+        <div class="dz-icon">
+          <svg viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+        </div>
+        <p>Drop your document here</p>
+        <span>Supports PDF, DOCX, TXT</span>
+        <div class="dz-btn">Browse files</div>
+      </div>
+      <input type="file" id="fi" accept=".pdf,.docx,.doc,.txt" style="display:none">
+      <div class="file-chip" id="fchip" style="display:none">
+        <span class="file-chip-icon" id="ficon">📄</span>
+        <div>
+          <div class="file-chip-name" id="fname"></div>
+          <div class="file-chip-size" id="fsize"></div>
+        </div>
+        <span class="chip-rm" onclick="removeMain()">✕</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Reference documents <span style="font-weight:300;font-size:11px;text-transform:none;letter-spacing:0;color:var(--dim)">(optional — local comparison)</span></div>
+      <div class="ref-list" id="ref-list"></div>
+      <button class="add-ref-btn" onclick="document.getElementById('ri').click()">+ Add reference document</button>
+      <input type="file" id="ri" accept=".pdf,.docx,.txt" style="display:none" multiple>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Depth</div>
+      <div class="slider-row">
+        <label>Segments to check — more is thorough but slower</label>
+        <input type="range" id="chunk-slider" min="5" max="40" value="20" step="1"
+               oninput="document.getElementById('chunkval').textContent=this.value">
+        <strong id="chunkval">20</strong>
+      </div>
+      <p style="font-size:11px;color:var(--dim);margin-top:4px">~5 min at 20 segments on average connection</p>
+    </div>
+
+    <button class="run-btn" id="run-btn" disabled onclick="startCheck()">
+      Run Plagiarism Check →
+    </button>
+    <div class="error-box" id="err-box"></div>
+  </div>
+
+  <!-- PROGRESS -->
+  <div id="prog-section">
+    <div class="prog-label">
+      <span id="ptext">Starting...</span>
+      <span id="ppct">0%</span>
+    </div>
+    <div class="pbar-bg"><div class="pbar-fill" id="pfill"></div></div>
+    <div class="plog" id="plog"></div>
+  </div>
+
+  <!-- RESULTS -->
+  <div id="results-section">
+    <div class="results-head">Analysis Results</div>
+
+    <div class="score-banner" id="score-banner">
+      <div class="score-num" id="score-num">—</div>
+      <div class="score-info">
+        <div class="score-level" id="score-level">—</div>
+        <div class="score-advice" id="score-advice">—</div>
+        <div style="position:relative;margin-bottom:5px">
+          <div class="scalebar">
+            <div style="background:#27ae60"></div>
+            <div style="background:#f5c542"></div>
+            <div style="background:#f07b3f"></div>
+            <div style="background:#e84040"></div>
+            <div style="background:#a81010"></div>
+            <div id="needle"></div>
+          </div>
+        </div>
+        <div class="scale-labels"><span>0</span><span>15%</span><span>35%</span><span>55%</span><span>75%</span><span>100%</span></div>
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">Plagiarism score</div>
+        <div class="stat-val" id="st-score">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Segments checked</div>
+        <div class="stat-val" id="st-checked">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Flagged segments</div>
+        <div class="stat-val" id="st-flagged">—</div>
+      </div>
+    </div>
+
+    <div class="seg-heading">Flagged passages with sources</div>
+    <div class="seg-list" id="seg-list"></div>
+
+    <div class="dl-section" id="dl-section" style="display:none">
+      <div class="seg-heading">Download annotated report</div>
+      <div class="dl-card">
+        <p>The PDF below contains every flagged passage <strong>highlighted in red</strong> with numbered annotations linking to source URLs, plus the full score card and scale.</p>
+      </div>
+      <a class="dl-btn" id="dl-btn" href="#" download>
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        Download Plagiarism Report PDF
+      </a>
+    </div>
+
+    <button class="reset-btn" onclick="resetAll()">← Check another document</button>
+  </div>
+
+</div>
+
+<script>
+  let mainFile = null;
+  let refFiles = [];
+  let pollTimer = null;
+
+  // ── drag & drop ──────────────────────────────────────────────────────────
+  const dz = document.getElementById('dz');
+  const fi = document.getElementById('fi');
+  const ri = document.getElementById('ri');
+
+  dz.addEventListener('dragover',  e => { e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+  dz.addEventListener('drop',      e => {
+    e.preventDefault(); dz.classList.remove('over');
+    if (e.dataTransfer.files[0]) setMain(e.dataTransfer.files[0]);
+  });
+  fi.addEventListener('change', e => { if (e.target.files[0]) setMain(e.target.files[0]); });
+  ri.addEventListener('change', e => { for (const f of e.target.files) addRef(f); });
+
+  function setMain(f) {
+    const ext = f.name.split('.').pop().toLowerCase();
+    if (!['pdf','docx','doc','txt'].includes(ext)) {
+      showErr('Unsupported file type. Please use PDF, DOCX, or TXT.'); return;
+    }
+    mainFile = f;
+    const icons = {pdf:'📕', docx:'📘', doc:'📘', txt:'📄'};
+    document.getElementById('ficon').textContent = icons[ext] || '📄';
+    document.getElementById('fname').textContent = f.name;
+    document.getElementById('fsize').textContent = fmtBytes(f.size);
+    document.getElementById('fchip').style.display = 'flex';
+    document.getElementById('run-btn').disabled = false;
+    hideErr();
+  }
+
+  function removeMain() {
+    mainFile = null;
+    document.getElementById('fchip').style.display = 'none';
+    document.getElementById('run-btn').disabled = true;
+    fi.value = '';
+  }
+
+  function addRef(f) { refFiles.push(f); renderRefs(); }
+  function removeRef(i) { refFiles.splice(i,1); renderRefs(); }
+  function renderRefs() {
+    const list = document.getElementById('ref-list');
+    list.innerHTML = '';
+    refFiles.forEach((f,i) => {
+      const d = document.createElement('div');
+      d.className = 'ref-chip';
+      d.innerHTML = `<span style="font-size:16px">📄</span>${f.name}
+        <span style="font-size:10px;color:var(--dim)">(${fmtBytes(f.size)})</span>
+        <span class="chip-rm" style="margin-left:auto" onclick="removeRef(${i})">✕</span>`;
+      list.appendChild(d);
+    });
+  }
+
+  function fmtBytes(b) {
+    if (b<1024) return b+' B';
+    if (b<1048576) return Math.round(b/1024)+' KB';
+    return (b/1048576).toFixed(1)+' MB';
+  }
+
+  function showErr(msg) {
+    const b = document.getElementById('err-box');
+    b.textContent = '⚠ ' + msg; b.style.display = 'block';
+  }
+  function hideErr() { document.getElementById('err-box').style.display='none'; }
+
+  // ── submit ───────────────────────────────────────────────────────────────
+  async function startCheck() {
+    if (!mainFile) return;
+    hideErr();
+    document.getElementById('run-btn').disabled = true;
+    document.getElementById('upload-section').style.opacity = '.5';
+    document.getElementById('upload-section').style.pointerEvents = 'none';
+    document.getElementById('prog-section').style.display = 'block';
+    document.getElementById('results-section').style.display = 'none';
+
+    const fd = new FormData();
+    fd.append('file', mainFile);
+    for (const rf of refFiles) fd.append('refs', rf);
+    fd.append('max_chunks', document.getElementById('chunk-slider').value);
+
+    try {
+      const res = await fetch('/upload', {method:'POST', body:fd});
+      const data = await res.json();
+      if (data.error) { showErr(data.error); resetProgress(); return; }
+      pollJob(data.job_id);
+    } catch(e) {
+      showErr('Upload failed: ' + e.message); resetProgress();
+    }
+  }
+
+  function pollJob(jobId) {
+    pollTimer = setInterval(async () => {
+      try {
+        const res  = await fetch('/status/' + jobId);
+        const data = await res.json();
+        setProg(data.progress || 0, data.message || '');
+        if (data.status === 'done') {
+          clearInterval(pollTimer);
+          showResults(data.result);
+        } else if (data.status === 'error') {
+          clearInterval(pollTimer);
+          showErr('Error: ' + data.message);
+          resetProgress();
+        }
+      } catch(e) { clearInterval(pollTimer); showErr('Connection lost.'); resetProgress(); }
+    }, 800);
+  }
+
+  function setProg(pct, msg) {
+    document.getElementById('pfill').style.width  = pct + '%';
+    document.getElementById('ppct').textContent   = pct + '%';
+    document.getElementById('ptext').textContent  = msg;
+    document.getElementById('plog').textContent   = msg;
+  }
+
+  function resetProgress() {
+    document.getElementById('upload-section').style.opacity = '1';
+    document.getElementById('upload-section').style.pointerEvents = 'auto';
+    document.getElementById('run-btn').disabled = false;
+    document.getElementById('prog-section').style.display = 'none';
+  }
+
+  // ── results ──────────────────────────────────────────────────────────────
+  function scoreColor(s) {
+    if (s<=15) return '#27ae60';
+    if (s<=35) return '#f5c542';
+    if (s<=55) return '#f07b3f';
+    if (s<=75) return '#e84040';
+    return '#a81010';
+  }
+
+  function showResults(r) {
+    document.getElementById('prog-section').style.display = 'none';
+    document.getElementById('upload-section').style.display = 'none';
+    document.getElementById('results-section').style.display = 'block';
+
+    const col = scoreColor(r.score);
+    document.getElementById('score-num').textContent    = r.score + '%';
+    document.getElementById('score-num').style.color    = col;
+    document.getElementById('score-level').textContent  = r.level;
+    document.getElementById('score-level').style.color  = col;
+    document.getElementById('score-advice').textContent = r.advice;
+    document.getElementById('score-banner').style.borderColor = col + '55';
+    document.getElementById('score-banner').querySelector('::before');
+
+    // accent bar on left of score banner
+    const banner = document.getElementById('score-banner');
+    banner.style.borderLeft = `3px solid ${col}`;
+    banner.style.paddingLeft = '30px';
+
+    document.getElementById('st-score').textContent   = r.score + '%';
+    document.getElementById('st-score').style.color   = col;
+    document.getElementById('st-checked').textContent = r.total;
+    document.getElementById('st-flagged').textContent = r.flagged_count;
+
+    setTimeout(() => {
+      document.getElementById('needle').style.left = r.score + '%';
+    }, 200);
+
+    // segments
+    const list = document.getElementById('seg-list');
+    list.innerHTML = '';
+
+    if (!r.segments || !r.segments.length) {
+      list.innerHTML = `<div class="clean-state">
+        <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <p>No plagiarised segments found — document appears to be original.</p>
+      </div>`;
+    } else {
+      const sorted = [...r.segments].sort((a,b)=>b.confidence-a.confidence);
+      sorted.forEach((seg,i) => {
+        const cc  = seg.confidence>=65?'#e84040':seg.confidence>=45?'#f07b3f':'#f5c542';
+        const tc  = seg.confidence>=65?'rgba(232,64,64,.2)':seg.confidence>=45?'rgba(240,123,63,.2)':'rgba(245,197,66,.2)';
+        const mt  = seg.match_type==='Wikipedia'?'mt-wiki':seg.match_type==='local'?'mt-local':'mt-web';
+        const mtL = seg.match_type || 'web';
+        const d   = document.createElement('div');
+        d.className = 'seg';
+        const urlHtml = seg.source_url && seg.source_url.startsWith('http')
+          ? `<a href="${seg.source_url}" target="_blank">${seg.source_url.slice(0,80)}${seg.source_url.length>80?'…':''}</a>`
+          : `<span>${seg.source_url||'N/A'}</span>`;
+        d.innerHTML = `
+          <div class="seg-top">
+            <span class="seg-badge" style="background:${tc};color:${cc}">Match #${i+1}</span>
+            <span class="mtype-tag ${mt}">${mtL}</span>
+            <span class="seg-conf">Confidence: <strong style="color:${cc}">${seg.confidence}%</strong></span>
+          </div>
+          <div class="seg-body">
+            <div class="seg-txt">${seg.chunk}</div>
+            <div class="seg-source">
+              <strong>Source:</strong> ${seg.source_title||'Unknown'}<br>
+              ${urlHtml}
+            </div>
+          </div>`;
+        list.appendChild(d);
+      });
+    }
+
+    // download
+    if (r.report_file) {
+      document.getElementById('dl-section').style.display = 'block';
+      document.getElementById('dl-btn').href = '/report/' + r.report_file;
+    }
+  }
+
+  // ── reset ────────────────────────────────────────────────────────────────
+  function resetAll() {
+    mainFile = null; refFiles = [];
+    if (pollTimer) clearInterval(pollTimer);
+    document.getElementById('upload-section').style.display  = 'block';
+    document.getElementById('upload-section').style.opacity  = '1';
+    document.getElementById('upload-section').style.pointerEvents = 'auto';
+    document.getElementById('results-section').style.display = 'none';
+    document.getElementById('prog-section').style.display    = 'none';
+    document.getElementById('fchip').style.display           = 'none';
+    document.getElementById('run-btn').disabled              = true;
+    document.getElementById('ref-list').innerHTML            = '';
+    document.getElementById('err-box').style.display         = 'none';
+    document.getElementById('pfill').style.width             = '0%';
+    fi.value = ''; ri.value = '';
+  }
+</script>
+</body>
+</html>
