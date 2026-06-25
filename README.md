@@ -25,4 +25,4 @@ plagcheck/
 ├── uploads/            # Temporary directory for uploaded input & reference files
 └── reports/            # Output directory for generated PDF evaluation reports
 
-<img width="835" height="1283" alt="{645A838C-2FDE-4005-B7C9-0EAC8DBA8D5E}" src="https://github.com/user-attachments/assets/567383d0-f3c1-435d-b019-ec3534868a2a" />
+
